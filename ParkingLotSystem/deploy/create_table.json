@@ -1,0 +1,41 @@
+{
+  "AttributeDefinitions": [
+    {
+      "AttributeName": "ticket_id",
+      "AttributeType": "S"
+    },
+    {
+      "AttributeName": "license_plate",
+      "AttributeType": "S"
+    }
+  ],
+  "TableName": "parking-tickets",
+  "KeySchema": [
+    {
+      "AttributeName": "ticket_id",
+      "KeyType": "HASH"
+    }
+  ],
+  "ProvisionedThroughput": {
+    "ReadCapacityUnits": 5,
+    "WriteCapacityUnits": 5
+  },
+  "GlobalSecondaryIndexes": [
+    {
+      "IndexName": "license_plate-index",
+      "KeySchema": [
+        {
+          "AttributeName": "license_plate",
+          "KeyType": "HASH"
+        }
+      ],
+      "Projection": {
+        "ProjectionType": "ALL"
+      },
+      "ProvisionedThroughput": {
+        "ReadCapacityUnits": 5,
+        "WriteCapacityUnits": 5
+      }
+    }
+  ]
+}

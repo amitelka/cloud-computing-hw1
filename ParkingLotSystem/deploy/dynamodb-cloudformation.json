@@ -1,0 +1,87 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Parking Lot Management System - DynamoDB Table",
+  
+  "Parameters": {
+    "TableName": {
+      "Type": "String",
+      "Default": "parking-tickets",
+      "Description": "Name of the DynamoDB table"
+    },
+    "Environment": {
+      "Type": "String",
+      "Default": "dev",
+      "Description": "Deployment environment",
+      "AllowedValues": ["dev", "test", "prod"]
+    }
+  },
+  
+  "Resources": {
+    "ParkingTicketsTable": {
+      "Type": "AWS::DynamoDB::Table",
+      "Properties": {
+        "TableName": {
+          "Fn::Join": [
+            "-",
+            [
+              {"Ref": "TableName"},
+              {"Ref": "Environment"}
+            ]
+          ]
+        },
+        "AttributeDefinitions": [
+          {
+            "AttributeName": "ticket_id",
+            "AttributeType": "S"
+          },
+          {
+            "AttributeName": "license_plate",
+            "AttributeType": "S"
+          }
+        ],
+        "KeySchema": [
+          {
+            "AttributeName": "ticket_id",
+            "KeyType": "HASH"
+          }
+        ],
+        "BillingMode": "PAY_PER_REQUEST",
+        "GlobalSecondaryIndexes": [
+          {
+            "IndexName": "license_plate-index",
+            "KeySchema": [
+              {
+                "AttributeName": "license_plate",
+                "KeyType": "HASH"
+              }
+            ],
+            "Projection": {
+              "ProjectionType": "ALL"
+            }
+          }
+        ],
+        "Tags": [
+          {
+            "Key": "Environment",
+            "Value": {"Ref": "Environment"}
+          },
+          {
+            "Key": "Project",
+            "Value": "ParkingLotSystem"
+          }
+        ]
+      }
+    }
+  },
+  
+  "Outputs": {
+    "TableName": {
+      "Description": "Name of the created DynamoDB table",
+      "Value": {"Ref": "ParkingTicketsTable"}
+    },
+    "TableArn": {
+      "Description": "ARN of the created DynamoDB table",
+      "Value": {"Fn::GetAtt": ["ParkingTicketsTable", "Arn"]}
+    }
+  }
+}
