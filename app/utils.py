@@ -2,7 +2,15 @@ import math
 import uuid
 from datetime import datetime, timezone
 from typing import Dict, Any, Tuple
+import re
+from decimal import Decimal
 
+
+PLATE_PATTERNS = [
+    r'^\d{3}-\d{2}-\d{3}$',
+    r'^\d{3}-\d{3}-\d{3}$',
+    r'^\d{2}-\d{3}-\d{2}$'
+]
 
 def generate_ticket_id() -> str:
     """Generate a unique ticket ID"""
@@ -13,6 +21,8 @@ def get_current_time() -> str:
     """Get current UTC time in ISO 8601 format"""
     return datetime.now(timezone.utc).isoformat()
 
+def validate_license_plate_format(plate: str) -> bool:
+    return any(re.match(p, plate) for p in PLATE_PATTERNS)
 
 def calculate_parking_fee(entry_time_str: str, exit_time_str: str) -> Tuple[float, Dict[str, Any]]:
     """
@@ -21,9 +31,8 @@ def calculate_parking_fee(entry_time_str: str, exit_time_str: str) -> Tuple[floa
     Rules:
     1. First 15 min block is always charged
     2. Billing unit = 15 min
-    3. Rate = 2 € per 15 min (8 €/h)
+    3. Rate = $2.50 per 15 min ($10/h)
     4. Partial blocks are rounded up
-    5. Daily cap: 40 € per 24h
     
     Returns:
         Tuple containing the fee amount and a dictionary with calculation details
@@ -36,19 +45,12 @@ def calculate_parking_fee(entry_time_str: str, exit_time_str: str) -> Tuple[floa
     duration_seconds = (exit_time - entry_time).total_seconds()
     duration_minutes = duration_seconds / 60
     duration_hours = duration_minutes / 60
-    
     # Convert to 15-minute blocks (always round up)
     blocks = math.ceil(duration_minutes / 15)
     
-    # Calculate base fee (2€ per block)
-    base_fee = blocks * 2
-    
-    # Apply daily cap (40€ per 24h)
-    days = math.floor(duration_hours / 24)
-    remaining_hours = duration_hours % 24
-    remaining_blocks = math.ceil(remaining_hours * 4)  # 4 blocks per hour
-    
-    fee = (days * 40) + min(40, remaining_blocks * 2)
+    base_fee = blocks * 2.5
+    fee = base_fee
+    fee = Decimal(str(fee))
     
     # Prepare calculation details
     details = {
@@ -57,10 +59,8 @@ def calculate_parking_fee(entry_time_str: str, exit_time_str: str) -> Tuple[floa
         "duration_minutes": round(duration_minutes, 2),
         "duration_hours": round(duration_hours, 2),
         "fifteen_min_blocks": blocks,
-        "days_charged": days,
-        "remaining_hours": round(remaining_hours, 2),
         "fee_amount": fee,
-        "currency": "EUR"
+        "currency": "USD"
     }
     
     return fee, details
@@ -72,14 +72,19 @@ def format_ticket_response(ticket: Dict[str, Any]) -> Dict[str, Any]:
         "ticket_id": ticket["ticket_id"],
         "license_plate": ticket["license_plate"],
         "entry_time": ticket["entry_time"],
-        "status": ticket["status"]
+        "payment_status": ticket["payment_status"]
     }
-    
+
     # Include exit details if available
     if "exit_time" in ticket:
         response["exit_time"] = ticket["exit_time"]
+
     if "fee" in ticket:
         response["fee"] = ticket["fee"]
-        response["currency"] = "EUR"
+        response["currency"] = "USD"  # Changed to USD per assignment spec
+
+    # Include parking lot if available
+    if "parking_lot" in ticket:
+        response["parking_lot"] = ticket["parking_lot"]
     
     return response
