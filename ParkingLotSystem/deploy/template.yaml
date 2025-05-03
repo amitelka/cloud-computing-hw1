@@ -1,0 +1,113 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Parking Lot Management System - EC2 Deployment
+
+Parameters:
+  Stage:
+    Type: String
+    Default: dev
+    Description: Deployment stage
+  KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instance
+  InstanceType:
+    Type: String
+    Default: t2.micro
+    Description: EC2 instance type
+    AllowedValues: [t2.micro, t2.small, t2.medium]
+  SSHLocation:
+    Type: String
+    Default: 0.0.0.0/0
+    Description: The IP address range that can be used to SSH to the EC2 instances
+
+Resources:
+  ParkingTicketsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub parking-tickets-${Stage}
+      AttributeDefinitions:
+        - AttributeName: ticket_id
+          AttributeType: S
+        - AttributeName: license_plate
+          AttributeType: S
+      KeySchema:
+        - AttributeName: ticket_id
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+      GlobalSecondaryIndexes:
+        - IndexName: license_plate-index
+          KeySchema:
+            - AttributeName: license_plate
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+            
+  ParkingLotSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable SSH and HTTP access
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref SSHLocation
+        - IpProtocol: tcp
+          FromPort: 8000
+          ToPort: 8000
+          CidrIp: 0.0.0.0/0
+          
+  ParkingLotInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess
+      
+  ParkingLotInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref ParkingLotInstanceRole
+          
+  ParkingLotInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !Ref InstanceType
+      SecurityGroups:
+        - !Ref ParkingLotSecurityGroup
+      KeyName: !Ref KeyName
+      ImageId: ami-06dd92ecc74fdfb36  # Amazon Linux 2023 in eu-central-1
+      IamInstanceProfile: !Ref ParkingLotInstanceProfile
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          yum update -y
+          yum install -y git python311 python311-pip awscli
+          
+          # Clone repository or download application files
+          mkdir -p /opt/parking-lot-system
+          
+          # Set up environment variables
+          echo "export DYNAMODB_TABLE=${ParkingTicketsTable}" > /etc/profile.d/parking-lot-env.sh
+          echo "export AWS_REGION=${AWS::Region}" >> /etc/profile.d/parking-lot-env.sh
+          
+          # The rest of setup will be done via EC2 setup script after deployment
+            
+Outputs:
+  ParkingLotInstanceIP:
+    Description: Public IP address of the EC2 instance
+    Value: !GetAtt ParkingLotInstance.PublicIp
+  ParkingLotInstanceId:
+    Description: Instance ID of the EC2 instance
+    Value: !Ref ParkingLotInstance
+  ParkingTicketsTable:
+    Description: DynamoDB Table Name
+    Value: !Ref ParkingTicketsTable
+  WebsiteURL:
+    Description: URL for the Parking Lot Management System
+    Value: !Sub http://${ParkingLotInstance.PublicIp}:8000
