@@ -16,14 +16,17 @@ Parameters:
     AllowedValues: [t2.micro, t2.small, t2.medium]
   SSHLocation:
     Type: String
-    Default: 0.0.0.0/0
-    Description: The IP address range that can be used to SSH to the EC2 instances
+    Description: The IP address range that can be used to SSH to the EC2 instances (set to your IP for security)
+  GitRepositoryUrl:
+    Type: String
+    Default: https://github.com/yourusername/parking-lot-system.git
+    Description: URL of the Git repository containing the application code
 
 Resources:
   ParkingTicketsTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub parking-tickets-${Stage}
+      TableName: !Sub parking-tickets
       AttributeDefinitions:
         - AttributeName: ticket_id
           AttributeType: S
@@ -33,6 +36,7 @@ Resources:
         - AttributeName: ticket_id
           KeyType: HASH
       BillingMode: PAY_PER_REQUEST
+
       GlobalSecondaryIndexes:
         - IndexName: license_plate-index
           KeySchema:
@@ -54,7 +58,7 @@ Resources:
           FromPort: 8000
           ToPort: 8000
           CidrIp: 0.0.0.0/0
-          
+
   ParkingLotInstanceRole:
     Type: AWS::IAM::Role
     Properties:
@@ -65,9 +69,23 @@ Resources:
             Principal:
               Service: ec2.amazonaws.com
             Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess
-      
+      Policies:
+        - PolicyName: ParkingTableCrud
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:CreateTable
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:Query
+                  - dynamodb:DescribeTable
+                Resource:
+                  - !GetAtt ParkingTicketsTable.Arn
+                  - !Sub "${ParkingTicketsTable.Arn}/index/*"
+
   ParkingLotInstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
@@ -86,17 +104,39 @@ Resources:
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
-          yum update -y
-          yum install -y git python311 python311-pip awscli
-          
-          # Clone repository or download application files
-          mkdir -p /opt/parking-lot-system
+          # Log all output for debugging
+          exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
           
           # Set up environment variables
           echo "export DYNAMODB_TABLE=${ParkingTicketsTable}" > /etc/profile.d/parking-lot-env.sh
           echo "export AWS_REGION=${AWS::Region}" >> /etc/profile.d/parking-lot-env.sh
           
-          # The rest of setup will be done via EC2 setup script after deployment
+          GIT_REPO_URL="${GitRepositoryUrl}"
+          git clone $GIT_REPO_URL /tmp/parking-lot-system
+          echo "export GIT_REPO_PATH=/tmp/parking-lot-system" >> /etc/profile.d/parking-lot-env.sh
+
+          # Set up the application
+          echo "Setting up the application..."
+          cd /tmp/parking-lot-system/deploy
+          chmod +x ec2_setup.sh
+          ./ec2_setup.sh
+          
+          echo "Setup complete! Check /var/log/user-data.log for details."
+          
+          # Create welcome message
+          cat > /etc/motd << EOF
+          =======================================================
+          Welcome to Parking Lot Management System EC2 Instance!
+          =======================================================
+          
+          Application Directory: /tmp/parking-lot-system
+          Log files: /var/log/user-data.log, journalctl -u parking-lot
+          
+          =======================================================
+          EOF
+          
+          # Display welcome message on login
+          echo "cat /etc/motd" >> /home/ubuntu/.bashrc
             
 Outputs:
   ParkingLotInstanceIP:

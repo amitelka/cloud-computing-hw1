@@ -1,6 +1,4 @@
 #!/bin/bash
-set -e
-
 # Parking Lot Management System - EC2 Setup Script
 # This script sets up the Parking Lot Management System on an EC2 instance
 
@@ -12,65 +10,50 @@ if [ -f .env ]; then
     source .env
 fi
 
-# Check for required tools
-for tool in aws python3 pip3; do
-    if ! command -v $tool &> /dev/null; then
-        echo "Error: $tool is required but not found. Please install it."
-        exit 1
-    fi
-done
+# Load environment variables from profile.d if they exist
+if [ -f /etc/profile.d/parking-lot-env.sh ]; then
+    source /etc/profile.d/parking-lot-env.sh
+fi
 
-# Check for AWS credentials
+# Update system packages
+echo "Updating system packages..."
+sudo apt update -y
+
+# Install required tools
+apt install -y awscli
+aws configure set region ${AWS_REGION}
+
+apt install -y python3.11 python3-pip git
+# Check for AWS credentials or role
 aws sts get-caller-identity &> /dev/null || {
     echo "Error: AWS credentials not configured or invalid."
-    echo "Please run 'aws configure' to set up your AWS credentials."
+    echo "Make sure IAM role is attached or credentials are configured."
     exit 1
 }
 
 # Default configuration
-: ${REGION:=eu-central-1}
-: ${TABLE_NAME:=parking-tickets}
 : ${PORT:=8000}
-: ${APP_DIR:=/opt/parking-lot-system}
+
+# check if GIT_REPO_PATH is set
+if [ -z "$GIT_REPO_PATH" ]; then
+    echo "Error: GIT_REPO_PATH environment variable is not set."
+    echo "Please set it with: export GIT_REPO_PATH=/path/to/your/repo"
+    exit 1
+fi
+
+APP_DIR=${GIT_REPO_PATH}/app
+DEPLOYMENT_DIR=${GIT_REPO_PATH}/deploy
 
 echo "===== Setting up Parking Lot Management System ====="
-echo "Region: $REGION"
-echo "Table Name: $TABLE_NAME"
+echo "Region: $AWS_REGION"
+echo "Table Name: $DYNAMODB_TABLE"
 echo "Port: $PORT"
 echo "App Directory: $APP_DIR"
-
-# Update system packages
-echo "Updating system packages..."
-sudo yum update -y
-
-# Install Python and required packages
-echo "Installing Python and required packages..."
-sudo yum install -y python311 python311-pip git
-
-# Create application directory
-echo "Creating application directory..."
-sudo mkdir -p $APP_DIR
-sudo chown ec2-user:ec2-user $APP_DIR
-
-# Copy application files
-echo "Copying application files..."
-cp -r ../app/* $APP_DIR/
 
 # Install Python dependencies
 echo "Installing Python dependencies..."
 cd $APP_DIR
-pip3.11 install -r requirements.txt
-
-# Create DynamoDB table if it doesn't exist
-echo "Creating DynamoDB table if it doesn't exist..."
-
-# Store the script directory to access create_table.json
-SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
-
-aws dynamodb describe-table --table-name $TABLE_NAME --region $REGION || \
-aws dynamodb create-table \
-    --cli-input-json file://${SCRIPT_DIR}/create_table.json \
-    --region $REGION
+python3.11 -m pip install -r requirements.txt
 
 # Create systemd service
 echo "Creating systemd service..."
@@ -80,12 +63,12 @@ Description=Parking Lot Management System
 After=network.target
 
 [Service]
-User=ec2-user
+User=ubuntu
 WorkingDirectory=$APP_DIR
 ExecStart=/usr/bin/python3.11 -m uvicorn main:app --host 0.0.0.0 --port $PORT
 Restart=always
-Environment=AWS_REGION=$REGION
-Environment=DYNAMODB_TABLE=$TABLE_NAME
+Environment=AWS_REGION=$AWS_REGION
+Environment=DYNAMODB_TABLE=$DYNAMODB_TABLE
 Environment=PORT=$PORT
 
 [Install]
