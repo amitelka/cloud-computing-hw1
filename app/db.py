@@ -25,7 +25,7 @@ class DynamoDBTicketStore:
             "dynamodb", region_name=self.region
         )
         self.table: Table = self.dynamodb.Table(self.table_name)
-        logger.info("Initialized DynamoDB connection to table: %s", self.table_name)
+        logger.info(f"Initialized DynamoDB connection to table: {self.table_name}")
 
     def create_ticket(
         self, ticket_id: str, license_plate: str, entry_time: str
@@ -38,10 +38,10 @@ class DynamoDBTicketStore:
         }
         try:
             self.table.put_item(Item=item)
-            logger.info("Created ticket %s for license plate %s", ticket_id, license_plate)
+            logger.info(f"Created ticket {ticket_id} for license plate {license_plate}")
             return item
         except ClientError as e:
-            logger.error("Failed to create ticket: %s", e)
+            logger.error(f"Failed to create ticket: {e}")
             raise
 
     def get_ticket(self, ticket_id: str) -> Optional[Dict[str, Any]]:
@@ -49,7 +49,7 @@ class DynamoDBTicketStore:
             resp = self.table.get_item(Key={"ticket_id": ticket_id})
             return resp.get("Item")
         except ClientError as e:
-            logger.error("Error fetching ticket %s: %s", ticket_id, e)
+            logger.error(f"Error fetching ticket {ticket_id}: {e}")
             raise
 
     def update_ticket_exit(
@@ -72,10 +72,10 @@ class DynamoDBTicketStore:
                 },
                 ReturnValues="ALL_NEW",
             )
-            logger.info("Updated ticket %s with exit time and fee %.2f USD", ticket_id, fee)
+            logger.info(f"Updated ticket {ticket_id} with exit time and fee {fee} USD")
             return resp.get("Attributes")
         except ClientError as e:
-            logger.error("Error updating ticket %s: %s", ticket_id, e)
+            logger.error(f"Error updating ticket {ticket_id}: {e}")
             raise
 
     def mark_ticket_paid(self, ticket_id: str, tx_id: str) -> Dict[str, Any]:
@@ -91,7 +91,7 @@ class DynamoDBTicketStore:
             )
             return resp["Attributes"]
         except ClientError as e:
-            logger.error("Could not mark ticket %s paid: %s", ticket_id, e)
+            logger.error(f"Could not mark ticket {ticket_id} paid: {e}")
             raise
 
     def is_license_plate_parked(self, license_plate: str) -> bool:
@@ -106,8 +106,8 @@ class DynamoDBTicketStore:
                 FilterExpression=Attr("payment_status").eq("active"),
             )
             parked = bool(resp.get("Items"))
-            logger.info("License plate %s parked: %s", license_plate, parked)
+            logger.info(f"License plate {license_plate} parked: {parked}")
             return parked
         except ClientError as e:
-            logger.error("Error checking plate %s: %s", license_plate, e)
+            logger.error(f"Error checking plate {license_plate}: {e}")
             raise
