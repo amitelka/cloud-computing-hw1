@@ -37,7 +37,6 @@ def calculate_parking_fee(entry_time_str: str, exit_time_str: str) -> Tuple[floa
     Returns:
         Tuple containing the fee amount and a dictionary with calculation details
     """
-    # Parse ISO 8601 timestamps
     entry_time = datetime.fromisoformat(entry_time_str)
     exit_time = datetime.fromisoformat(exit_time_str)
     
@@ -45,7 +44,6 @@ def calculate_parking_fee(entry_time_str: str, exit_time_str: str) -> Tuple[floa
     duration_seconds = (exit_time - entry_time).total_seconds()
     duration_minutes = duration_seconds / 60
     duration_hours = duration_minutes / 60
-    # Convert to 15-minute blocks (always round up)
     blocks = math.ceil(duration_minutes / 15)
     
     base_fee = blocks * 2.5
