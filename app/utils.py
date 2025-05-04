@@ -44,7 +44,7 @@ def calculate_parking_fee(entry_time_str: str, exit_time_str: str) -> Tuple[floa
     duration_seconds = (exit_time - entry_time).total_seconds()
     duration_minutes = duration_seconds / 60
     duration_hours = duration_minutes / 60
-    blocks = math.max(1, math.ceil(duration_minutes / 15))
+    blocks = max(1, math.ceil(duration_minutes / 15))
     
     base_fee = blocks * 2.5
     fee = base_fee
