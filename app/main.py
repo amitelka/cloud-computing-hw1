@@ -55,27 +55,6 @@ logger.info(f"Using DynamoDB table: {os.getenv('DYNAMODB_TABLE', 'parking-ticket
 # Initialize DynamoDB store
 ticket_store: DynamoDBTicketStore = DynamoDBTicketStore()
 
-async def get_ticket(ticket_id: str, response: Response):
-    """
-    Get ticket details by ID
-    """
-    logger.info(f"Retrieving ticket: {ticket_id}")
-    
-    try:
-        ticket = ticket_store.get_ticket(ticket_id)
-        
-        if not ticket:
-            logger.warning(f"Ticket {ticket_id} not found")
-            response.status_code = status.HTTP_404_NOT_FOUND
-            return {"detail": f"Ticket {ticket_id} not found"}
-        
-        return format_ticket_response(ticket)
-    
-    except Exception as e:
-        logger.error(f"Error retrieving ticket: {str(e)}")
-        response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
-        return {"detail": "Internal server error"}
-
 @app.get("/health")
 async def health_check():
     """
