@@ -9,11 +9,11 @@ import uuid
 import uvicorn
 from fastapi import FastAPI, Query, status
 from fastapi.responses import JSONResponse
+from botocore.exceptions import ClientError
 
 from db import DynamoDBTicketStore
 from utils import (
     calculate_parking_fee,
-    format_ticket_response, 
     generate_ticket_id,
     get_current_time,
     validate_license_plate_format
@@ -165,7 +165,8 @@ async def exit_endpoint(
         
     except Exception as e:
         logger.error(f"Error processing exit: {str(e)}")
-        if e.response["Error"]["Code"] == "ConditionalCheckFailedException":
+
+        if isinstance(e, ClientError) and e.response["Error"]["Code"] == "ConditionalCheckFailedException":
             return JSONResponse(
                 status_code=status.HTTP_409_CONFLICT,
                 content={"detail": f"Exit request for ticket {ticketId} was already processed"},

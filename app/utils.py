@@ -62,27 +62,3 @@ def calculate_parking_fee(entry_time_str: str, exit_time_str: str) -> Tuple[floa
     }
     
     return fee, details
-
-
-def format_ticket_response(ticket: Dict[str, Any]) -> Dict[str, Any]:
-    """Format a ticket for API response"""
-    response = {
-        "ticket_id": ticket["ticket_id"],
-        "license_plate": ticket["license_plate"],
-        "entry_time": ticket["entry_time"],
-        "payment_status": ticket["payment_status"]
-    }
-
-    # Include exit details if available
-    if "exit_time" in ticket:
-        response["exit_time"] = ticket["exit_time"]
-
-    if "fee" in ticket:
-        response["fee"] = ticket["fee"]
-        response["currency"] = "USD"  # Changed to USD per assignment spec
-
-    # Include parking lot if available
-    if "parking_lot" in ticket:
-        response["parking_lot"] = ticket["parking_lot"]
-    
-    return response
