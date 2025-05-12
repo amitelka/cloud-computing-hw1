@@ -184,20 +184,20 @@ async def pay_endpoint(
         logger.warning(f"Ticket {ticketId} not found")
         return JSONResponse(
             status_code=status.HTTP_404_NOT_FOUND,
-            content=f"Ticket {ticketId} not found"
+            content={"detail": f"Ticket {ticketId} not found"}
         )
 
     if ticket["payment_status"] == "paid":
         logger.warning(f"Ticket {ticketId} already paid")
         return JSONResponse(
             status_code=status.HTTP_409_CONFLICT,
-            content="Ticket already settled"
+            content={"detail": f"Ticket {ticketId} is already settled"}
         )
     if ticket["payment_status"] != "pending_payment":
         logger.warning(f"Ticket {ticketId} is in unexpected state: {ticket['payment_status']}")
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
-            content=f"Ticket is in unexpected state {ticket['payment_status']}"
+            content={"detail": f"Ticket is in unexpected state {ticket['payment_status']}"}
         )
 
     fake_tx_id = f"tx-{uuid.uuid4()}"      # pretend the PSP returned this

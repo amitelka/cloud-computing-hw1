@@ -1,13 +1,13 @@
 #!/bin/bash
-# Parking Lot Management System - Deployment Script
-set -e  # Exit on error
+set -eu
 
-# Default configuration
-STACK_NAME=${STACK_NAME:-parking-lot-system}
-REGION=${REGION:-eu-central-1}
-STAGE=${STAGE:-dev}
-INSTANCE_TYPE=${INSTANCE_TYPE:-t2.micro}
-SSH_LOCATION=${SSH_LOCATION:-$(curl -s https://checkip.amazonaws.com)/32}
+# This script deploys the Parking Lot Management System using AWS CloudFormation.
+REGION="eu-central-1"
+STACK_NAME="parking-lot-system"
+STAGE="dev"
+INSTANCE_TYPE="t2.micro"
+DOCKER_IMAGE="aelka/cloud-computing-hw1:latest"
+SSH_LOCATION=$(curl -s https://checkip.amazonaws.com)/32  # Auto-detect current IP for SSH access
 
 # Check required parameters
 if [ -z "$KEY_PAIR_NAME" ]; then
@@ -16,16 +16,10 @@ if [ -z "$KEY_PAIR_NAME" ]; then
     exit 1
 fi
 
-if [ -z "$GIT_REPO_URL" ]; then
-    echo "Error: GIT_REPO_URL environment variable is not set."
-    echo "Please set it with: export GIT_REPO_URL=https://github.com/your-username/your-repo.git"
-    exit 1
-fi
-
 echo "====== Deploying Parking Lot Management System ======"
 echo "Stack: $STACK_NAME | Region: $REGION | Stage: $STAGE | Instance: $INSTANCE_TYPE"
-echo "Key Pair: $KEY_PAIR_NAME | SSH Access: $SSH_LOCATION"
-echo "Repository: $GIT_REPO_URL"
+echo "Key Pair: $KEY_PAIR_NAME | SSH Access From: $SSH_LOCATION"
+echo "Docker Image: $DOCKER_IMAGE"
 
 # Validate requirements
 command -v aws &>/dev/null || { echo "Error: AWS CLI is required"; exit 1; }
@@ -40,7 +34,7 @@ aws cloudformation deploy \
   --region "$REGION" \
   --parameter-overrides \
       KeyName="$KEY_PAIR_NAME" \
-      GitRepositoryUrl="$GIT_REPO_URL" \
+      DockerImage="$DOCKER_IMAGE" \
       Stage="$STAGE" \
       InstanceType="$INSTANCE_TYPE" \
       SSHLocation="$SSH_LOCATION"

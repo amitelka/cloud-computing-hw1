@@ -1,32 +1,29 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Parking Lot Management System - EC2 Deployment
+Description: Parking Lot Management System - EC2 Deployment with Docker
 
 Parameters:
   Stage:
     Type: String
-    Default: dev
     Description: Deployment stage
   KeyName:
     Type: AWS::EC2::KeyPair::KeyName
-    Description: Name of an existing EC2 KeyPair to enable SSH access to the instance
+    Description: Name of a EC2 KeyPair to enable SSH access to the instance
   InstanceType:
     Type: String
-    Default: t2.micro
     Description: EC2 instance type
     AllowedValues: [t2.micro, t2.small, t2.medium]
   SSHLocation:
     Type: String
-    Description: The IP address range that can be used to SSH to the EC2 instances (set to your IP for security)
-  GitRepositoryUrl:
+    Description: The IP address range that can be used to SSH to the EC2 instances
+  DockerImage:
     Type: String
-    Default: https://github.com/yourusername/parking-lot-system.git
-    Description: URL of the Git repository containing the application code
+    Description: Docker image to deploy
 
 Resources:
   ParkingTicketsTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub parking-tickets
+      TableName: parking-tickets
       AttributeDefinitions:
         - AttributeName: ticket_id
           AttributeType: S
@@ -44,7 +41,7 @@ Resources:
               KeyType: HASH
           Projection:
             ProjectionType: ALL
-            
+
   ParkingLotSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -91,7 +88,7 @@ Resources:
     Properties:
       Roles:
         - !Ref ParkingLotInstanceRole
-          
+
   ParkingLotInstance:
     Type: AWS::EC2::Instance
     Properties:
@@ -99,45 +96,54 @@ Resources:
       SecurityGroups:
         - !Ref ParkingLotSecurityGroup
       KeyName: !Ref KeyName
-      ImageId: ami-06dd92ecc74fdfb36  # Amazon Linux 2023 in eu-central-1
+      ImageId: ami-06dd92ecc74fdfb36  # Ubuntu 22.04 LTS
       IamInstanceProfile: !Ref ParkingLotInstanceProfile
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
-          # Log all output for debugging
           exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
-          
-          # Set up environment variables
-          echo "export DYNAMODB_TABLE=${ParkingTicketsTable}" > /etc/profile.d/parking-lot-env.sh
-          echo "export AWS_REGION=${AWS::Region}" >> /etc/profile.d/parking-lot-env.sh
-          
-          GIT_REPO_URL="${GitRepositoryUrl}"
-          git clone $GIT_REPO_URL /tmp/parking-lot-system
-          echo "export GIT_REPO_PATH=/tmp/parking-lot-system" >> /etc/profile.d/parking-lot-env.sh
 
-          # Set up the application
-          echo "Setting up the application..."
-          cd /tmp/parking-lot-system/deploy
-          chmod +x ec2_setup.sh
-          ./ec2_setup.sh
-          
-          echo "Setup complete! Check /var/log/user-data.log for details."
-          
-          # Create welcome message
-          cat > /etc/motd << EOF
-          =======================================================
-          Welcome to Parking Lot Management System EC2 Instance!
-          =======================================================
-          
-          Application Directory: /tmp/parking-lot-system
-          Log files: /var/log/user-data.log, journalctl -u parking-lot
-          
-          =======================================================
+          # Install Docker
+          apt-get update -y
+          sudo apt-get install docker.io -y
+          systemctl start docker
+          systemctl enable docker
+
+          # Install AWS CLI for DynamoDB access
+          apt-get install -y awscli
+          aws configure set region ${AWS::Region}
+
+          # Pull and run the Docker container
+          echo "Pulling Docker image ${DockerImage}..."
+          docker pull ${DockerImage}
+
+          # Create a systemd service for the container
+          cat > /etc/systemd/system/parking-lot-docker.service << 'EOF'
+          [Unit]
+          Description=Parking Lot Management System Docker Container
+          After=docker.service
+          Requires=docker.service
+
+          [Service]
+          Restart=always
+          ExecStartPre=-/usr/bin/docker stop parking-lot
+          ExecStartPre=-/usr/bin/docker rm parking-lot
+          ExecStart=/usr/bin/docker run --name parking-lot \
+            -p 8000:8000 \
+            -e AWS_REGION=${AWS::Region} \
+            -e DYNAMODB_TABLE=${ParkingTicketsTable} \
+            ${DockerImage}
+          ExecStop=/usr/bin/docker stop parking-lot
+
+          [Install]
+          WantedBy=multi-user.target
           EOF
-          
-          # Display welcome message on login
-          echo "cat /etc/motd" >> /home/ubuntu/.bashrc
-            
+
+          # Start the service
+          systemctl daemon-reload
+          systemctl enable parking-lot-docker
+          systemctl start parking-lot-docker
+
 Outputs:
   ParkingLotInstanceIP:
     Description: Public IP address of the EC2 instance
