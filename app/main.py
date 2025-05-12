@@ -7,7 +7,7 @@ import sys
 import uuid
 
 import uvicorn
-from fastapi import FastAPI, Query, Response, status
+from fastapi import FastAPI, Query, status
 from fastapi.responses import JSONResponse
 
 from db import DynamoDBTicketStore
@@ -165,6 +165,12 @@ async def exit_endpoint(
         
     except Exception as e:
         logger.error(f"Error processing exit: {str(e)}")
+        if e.response["Error"]["Code"] == "ConditionalCheckFailedException":
+            return JSONResponse(
+                status_code=status.HTTP_409_CONFLICT,
+                content={"detail": f"Exit request for ticket {ticketId} was already processed"},
+            )
+
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"detail": "Internal server error"}

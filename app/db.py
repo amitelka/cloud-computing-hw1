@@ -58,6 +58,7 @@ class DynamoDBTicketStore:
         try:
             resp = self.table.update_item(
                 Key={"ticket_id": ticket_id},
+                ConditionExpression=Attr("payment_status").eq("active"),
                 UpdateExpression="""
                     SET exit_time = :exit_time,
                         fee        = :fee,
