@@ -70,7 +70,7 @@ async def entry_endpoint(
     """
     Entry endpoint following the exact format from the assignment:
     POST /entry?plate=123-123-123&parkingLot=382
-    
+
     Returns ticket ID
     """
     logger.info(f"Entry request for plate: {plate} at parking lot: {parkingLot}")
@@ -88,11 +88,11 @@ async def entry_endpoint(
                 status_code=status.HTTP_409_CONFLICT,
                 content={"detail": f"Vehicle with license plate {plate} is already parked"}
             )
-        
+
         # Create new ticket
         ticket_id = generate_ticket_id()
         entry_time = get_current_time()
-        
+
         # Create the ticket
         ticket_store.create_ticket(ticket_id, plate, entry_time)
 
@@ -107,7 +107,7 @@ async def entry_endpoint(
 
         # Simply return the ticket ID as specified in the assignment
         return {"ticketId": ticket_id}
-        
+
     except Exception as e:
         logger.error(f"Error creating entry: {str(e)}")
         return JSONResponse(
@@ -122,13 +122,13 @@ async def exit_endpoint(
     """
     Exit endpoint following the exact format from the assignment:
     POST /exit?ticketId=1234
-    
+
     Returns the license plate, total parked time, parking lot ID and the charge
     """
     logger.info(f"Exit request for ticket: {ticketId}")
     try:
         ticket = ticket_store.get_ticket(ticketId)
-        
+
         if not ticket:
             return JSONResponse(
                 status_code=status.HTTP_404_NOT_FOUND, 
@@ -146,7 +146,7 @@ async def exit_endpoint(
                 status_code=status.HTTP_409_CONFLICT, 
                 content={"detail": f"Ticket {ticketId} is already paid"}
             )
-            
+
         exit_time = get_current_time()
         fee, fee_details = calculate_parking_fee(ticket["entry_time"], exit_time)
 
@@ -154,7 +154,7 @@ async def exit_endpoint(
         updated_ticket = ticket_store.update_ticket_exit(ticketId, exit_time, fee)
 
         logger.info(f"Processed exit for ticket {ticketId}, fee: ${fee} USD")
-        
+
         # Return format matching the assignment requirement
         return {
             "licensePlate": updated_ticket["license_plate"],
@@ -162,7 +162,7 @@ async def exit_endpoint(
             "parkingLot": ticket.get("parking_lot", "N/A"),
             "charge": fee
         }
-        
+
     except Exception as e:
         logger.error(f"Error processing exit: {str(e)}")
 
